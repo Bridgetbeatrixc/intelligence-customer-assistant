@@ -5,6 +5,9 @@ from typing import Iterable
 from src.config import settings
 
 
+GREETING_WORDS = {"halo", "hello", "hi", "hai", "hey", "selamat pagi", "selamat siang", "selamat sore", "selamat malam"}
+
+
 SYSTEM_PROMPT = """You are an intelligent customer assistant.
 Answer in a warm, concise, and helpful tone.
 Use only the provided knowledge base context when giving factual support answers.
@@ -30,12 +33,22 @@ def format_context(results: Iterable) -> str:
 
 
 def fallback_answer(question: str, results: list) -> str:
+    normalized_question = question.lower().strip()
+    if normalized_question in GREETING_WORDS:
+        return "Halo! Ada yang bisa saya bantu hari ini?"
+
     if not results:
         return (
             "Saya belum menemukan konteks yang cukup relevan di knowledge base. "
             "Silakan hubungi tim support untuk bantuan lebih lanjut."
         )
     best = results[0]
+    if best.score < 0.12:
+        return (
+            "Saya belum menemukan konteks yang cukup relevan di knowledge base. "
+            "Silakan hubungi tim support untuk bantuan lebih lanjut."
+        )
+
     return (
         f"Berdasarkan knowledge base kategori {best.category}, jawaban yang paling relevan adalah: "
         f"{best.answer}"
