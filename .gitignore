@@ -5,6 +5,7 @@ __pycache__/
 .streamlit/secrets.toml
 data/raw/*.csv
 data/processed/*.csv
+!data/processed/knowledge_base.csv
 data/processed/*.jsonl
 logs/
 *.log

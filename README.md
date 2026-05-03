@@ -14,12 +14,18 @@ End-to-end customer assistant berbasis RAG untuk assignment Data Science and Mac
 
 ## Setup
 
-1. Buat virtual environment dan install dependency.
+1. Buat virtual environment dan install dependency. Untuk menjalankan demo Streamlit, gunakan dependency utama:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+Untuk fitur lengkap PgVector, Groq, dan embedding ingestion lokal, gunakan:
+
+```powershell
+pip install -r requirements-full.txt
 ```
 
 2. Copy environment template.
