@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+data/raw/*.csv
+data/processed/*.csv
+data/processed/*.jsonl
+logs/
+*.log
