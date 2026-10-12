@@ -1,20 +1,31 @@
 # Intelligent Customer Assistant System
 
-End-to-end customer assistant berbasis RAG untuk assignment Data Science and Machine Learning Bootcamp. Project ini memakai dataset `prompt,response` sebagai knowledge base, menghasilkan embedding, menyimpan ke PostgreSQL + PgVector, lalu menyediakan chatbot Streamlit yang bisa menjawab dengan konteks retrieval.
+An end-to-end, retrieval-augmented (RAG) customer support chatbot, built for the Data Science and Machine Learning Bootcamp. It turns a `prompt,response` dataset into a knowledge base, embeds it into PostgreSQL + pgvector, and serves a Streamlit chatbot that answers with retrieved context.
 
-## Fitur
+## Features
 
-- Preprocessing dataset CSV: cleaning, deduplication, validasi panjang teks, kategori, dan tagging.
-- Database schema PgVector dengan metadata, category filter, GIN index, dan HNSW vector index.
-- Embedding batch menggunakan `sentence-transformers/all-MiniLM-L6-v2`.
-- Semantic search dengan cosine distance, threshold relevance, optional category filter, exact-match boost, dan logging.
-- RAG pipeline LangChain + Groq API dengan prompt khusus customer service.
-- Streamlit chat UI dengan loading indicator, source context, dan fallback search lokal.
-- Evaluasi QnA sederhana: hit rate, mean top score, answer similarity, dan latency.
+- CSV preprocessing: cleaning, deduplication, text length validation, categorisation and tagging
+- pgvector schema with metadata, category filters, a GIN index and an HNSW vector index
+- Batch embeddings with `sentence-transformers/all-MiniLM-L6-v2`
+- Semantic search with cosine distance, a relevance threshold, optional category filtering, exact-match boosting and logging
+- RAG pipeline with LangChain and the Groq API, using a customer-service prompt
+- Streamlit chat UI with a loading indicator, source context and a local search fallback
+- Simple QnA evaluation: hit rate, mean top score, answer similarity and latency
+
+## How a question is answered
+
+1. Clean the user's question.
+2. Look for exact-match candidates.
+3. Run semantic search in pgvector.
+4. Filter results by the relevance threshold.
+5. Build the context for the customer-service prompt.
+6. Call the Groq LLM to generate the answer.
+
+If `GROQ_API_KEY` isn't set, the system returns a retrieval-based answer so the UI can still be tested.
 
 ## Setup
 
-1. Buat virtual environment dan install dependency. Untuk menjalankan demo Streamlit, gunakan dependency utama:
+1. Create a virtual environment and install dependencies. The main requirements are enough for the Streamlit demo:
 
 ```powershell
 python -m venv .venv
@@ -22,21 +33,19 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Untuk fitur lengkap PgVector, Groq, dan embedding ingestion lokal, gunakan:
+For the full pgvector, Groq and local embedding ingestion features:
 
 ```powershell
 pip install -r requirements-full.txt
 ```
 
-2. Copy environment template.
+2. Copy the environment template and fill in `GROQ_API_KEY` and `DATABASE_URL`:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-3. Isi `.env` dengan `GROQ_API_KEY` dan `DATABASE_URL`.
-
-4. Siapkan PostgreSQL database dan PgVector.
+3. Prepare PostgreSQL with pgvector:
 
 ```sql
 CREATE DATABASE customer_assistant;
@@ -44,95 +53,60 @@ CREATE DATABASE customer_assistant;
 \i schema.sql
 ```
 
-## Menyiapkan Knowledge Base
+## Building the knowledge base
 
-Letakkan dataset original di `data/raw/dataset_assignment.csv`, atau jalankan script dengan path dataset dari Downloads.
+Put the original dataset at `data/raw/dataset_assignment.csv`, or pass its path to the script:
 
 ```powershell
-python scripts\prepare_kb.py --input "C:\Users\bridg\Downloads\dataset_assignment.csv" --output data\processed\knowledge_base.csv --limit 300
+python scripts\prepare_kb.py --input data\raw\dataset_assignment.csv --output data\processed\knowledge_base.csv --limit 300
 ```
 
-Script menghasilkan minimal 50 entri knowledge base dengan kolom:
+The script produces at least 50 knowledge base entries with the columns `source_id`, `question`, `answer`, `content`, `category`, `tags` and `info_type`. Categories come from simple rules suited to a customer assistant: `faq`, `policy`, `troubleshooting`, `contact` and `general`.
 
-- `source_id`
-- `question`
-- `answer`
-- `content`
-- `category`
-- `tags`
-- `info_type`
-
-Kategori dibuat dari rule sederhana untuk kebutuhan customer assistant:
-
-- `faq`
-- `policy`
-- `troubleshooting`
-- `contact`
-- `general`
-
-## Ingestion ke PgVector
+## Ingesting into pgvector
 
 ```powershell
 python scripts\ingest.py --input data\processed\knowledge_base.csv --batch-size 32
 ```
 
-Kalau PostgreSQL belum tersedia, aplikasi masih bisa memakai file CSV sebagai fallback local search dengan TF-IDF. Untuk penilaian PgVector, jalankan PostgreSQL dan ingestion di atas.
+Without PostgreSQL, the app falls back to TF-IDF search over the CSV file.
 
-## Menjalankan Chatbot
+## Running the chatbot
 
 ```powershell
 streamlit run app.py
 ```
 
-Atau gunakan runner Windows yang sudah disiapkan:
+or with the Windows runner:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run_streamlit.ps1 -Port 8501
 ```
 
-Chatbot akan:
-
-1. Membersihkan pertanyaan user.
-2. Melakukan exact match candidate search.
-3. Melakukan semantic search di PgVector.
-4. Memfilter hasil berdasarkan threshold.
-5. Menyusun context untuk prompt customer service.
-6. Memanggil Groq LLM untuk menghasilkan jawaban.
-
-Jika `GROQ_API_KEY` belum diisi, sistem mengembalikan jawaban berbasis retrieval agar UI tetap bisa diuji.
-
-## Evaluasi
+## Evaluation
 
 ```powershell
 python scripts\evaluate.py --input data\processed\knowledge_base.csv --sample-size 50
 ```
 
-Metrik:
+Metrics:
 
-- `hit_rate_at_k`: seberapa sering dokumen asal ditemukan di top-k.
-- `mean_top_score`: rata-rata relevance score top result.
-- `mean_answer_similarity`: kemiripan TF-IDF jawaban prediksi dan expected answer.
-- `mean_latency_ms`: rata-rata latency retrieval.
+- `hit_rate_at_k`: how often the source document appears in the top-k results
+- `mean_top_score`: average relevance score of the top result
+- `mean_answer_similarity`: TF-IDF similarity between the predicted and expected answers
+- `mean_latency_ms`: average retrieval latency
 
-## Design Decisions
+## Design decisions
 
-### Schema
+**Schema.** The `knowledge_base` table stores the original text, a combined `content` field, category, tags, information type, JSONB metadata and the vector embedding, so it supports semantic search and metadata filtering together.
 
-Tabel `knowledge_base` menyimpan teks asli, gabungan `content`, kategori, tag, tipe informasi, metadata JSONB, dan vector embedding. Struktur ini mendukung semantic search sekaligus metadata filtering.
+**Indexing.** HNSW suits an interactive chatbot: low query latency and stable recall without training the index. GIN indexes cover `tags` and `metadata`; B-tree indexes cover `category` and `info_type`.
 
-### Indexing
+**Embedding model.** `all-MiniLM-L6-v2` is light, fast on a laptop, has only 384 dimensions and works well for FAQ and support-style semantic similarity.
 
-HNSW dipilih karena cocok untuk chatbot interaktif: query latency rendah dan recall stabil tanpa training index. GIN index dipakai untuk `tags` dan `metadata`, sedangkan B-tree index dipakai untuk `category` dan `info_type`.
+**RAG prompt.** The prompt asks the assistant to be friendly, concise and grounded in the context, and to say so when the context isn't enough. This reduces hallucination and fits customer service.
 
-### Embedding Model
-
-`sentence-transformers/all-MiniLM-L6-v2` dipakai karena ringan, cepat di laptop, dimensi embedding hanya 384, dan cukup baik untuk semantic similarity FAQ/customer support.
-
-### RAG Prompt
-
-Prompt mengarahkan assistant untuk menjawab ramah, ringkas, berbasis konteks, dan mengakui jika konteks tidak cukup. Ini mengurangi halusinasi dan membuat respons lebih cocok untuk customer service.
-
-## Struktur Project
+## Project structure
 
 ```text
 app.py
